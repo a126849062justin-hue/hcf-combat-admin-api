@@ -1,0 +1,8 @@
+# 不要把資料、相依套件、密鑰推上 git
+node_modules/
+data/
+data-test/
+*.log
+.env
+.env.local
+.DS_Store

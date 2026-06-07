@@ -1,0 +1,17 @@
+# Render Blueprint — HCF 獨立後台
+# 用法：Render → New → Blueprint → 連到本 repo，會自動套用以下設定。
+# 部署後到 Dashboard 的 Environment 填入 ADMIN_PASSWORD 與 DATABASE_URL。
+services:
+  - type: web
+    name: hcf-admin
+    runtime: node
+    plan: free            # 免費方案（閒置 15 分鐘休眠，首次喚醒約 30–60 秒）
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ADMIN_PASSWORD   # 後台登入密碼（務必自訂，勿用預設）
+        sync: false           # 在 Render 後台手動填，不寫進 repo
+      - key: DATABASE_URL     # Neon Postgres 連線字串（免費版資料才不會因休眠而丟）
+        sync: false
+      - key: SITE_ORIGIN      # 限制 CORS 來源
+        value: https://www.hsinchucombat.com

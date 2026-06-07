@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HCF 後台管理</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Oswald:wght@600&display=swap" rel="stylesheet">
+<script src="/chart.js"></script>
+<style>
+:root{--red:#C81015;--redD:#9B0B0F;--ink:#111;--ink2:#4A4A4A;--line:#E5E5E5;--surface:#F7F7F7}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans TC',sans-serif;background:#F2F2F2;color:var(--ink);line-height:1.7}
+button,input,select,textarea{font-family:inherit;font-size:1rem}
+.hide{display:none!important}
+/* 登入 */
+#login{min-height:100svh;display:flex;align-items:center;justify-content:center;background:var(--ink)}
+#login .box{background:#fff;padding:40px 36px;width:min(380px,92vw);border-top:6px solid var(--red)}
+#login h1{font-weight:900;font-size:1.4rem}#login h1 i{font-style:normal;color:var(--red);font-family:Oswald}
+#login p{color:var(--ink2);font-size:.88rem;margin-top:4px}
+#login input{width:100%;margin-top:18px;border:1.5px solid var(--line);padding:13px 14px}
+#login button{width:100%;margin-top:14px;background:var(--red);color:#fff;border:0;font-weight:900;padding:14px;cursor:pointer}
+#login button:hover{background:var(--redD)}
+#loginErr{color:var(--red);font-size:.85rem;margin-top:10px;min-height:1.4em}
+/* 主框架 */
+header{position:sticky;top:0;z-index:10;background:var(--ink);color:#fff;display:flex;align-items:center;gap:18px;padding:0 18px;height:56px}
+header b{font-family:Oswald;letter-spacing:.12em}header b i{font-style:normal;color:var(--red)}
+nav{display:flex;gap:4px;margin-left:8px;overflow-x:auto}
+nav button{background:none;border:0;color:#bbb;font-weight:700;padding:8px 14px;cursor:pointer;white-space:nowrap}
+nav button.on{color:#fff;border-bottom:3px solid var(--red)}
+#logout{margin-left:auto;background:none;border:1px solid #555;color:#bbb;padding:5px 12px;font-size:.8rem;cursor:pointer}
+main{max-width:1100px;margin:24px auto;padding:0 16px 80px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.card{background:#fff;border-top:4px solid var(--red);padding:16px 18px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+.card .n{font-family:Oswald;font-size:2rem;font-weight:600;color:var(--red)}
+.card .l{color:var(--ink2);font-size:.82rem}
+.panel{background:#fff;padding:20px;margin-top:16px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+.panel h3{font-weight:900;border-left:5px solid var(--red);padding-left:10px;margin-bottom:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.row2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{border-bottom:1px solid var(--line);padding:9px 8px;text-align:left;vertical-align:top}
+th{background:var(--surface);font-size:.8rem}
+.tag{display:inline-block;padding:2px 9px;font-size:.74rem;font-weight:700;color:#fff;border-radius:3px}
+.t-new{background:var(--red)}.t-contacted{background:#E8A800}.t-won{background:#0F9D63}.t-lost{background:#777}
+select.st{padding:4px 6px}textarea{width:100%;border:1.5px solid var(--line);padding:8px}
+.btn{background:var(--red);color:#fff;border:0;font-weight:900;padding:10px 20px;cursor:pointer}
+.btn:hover{background:var(--redD)}
+.btn.gray{background:var(--ink)}
+.btn.line{background:#fff;color:var(--ink);border:1.5px solid var(--ink)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.hint{color:var(--ink2);font-size:.83rem}
+.ok{color:#0F9D63;font-weight:700}
+/* 課表編輯器 */
+.sgrid{display:grid;grid-template-columns:110px repeat(5,1fr);gap:6px;font-size:.8rem}
+.sgrid.we{grid-template-columns:110px repeat(2,1fr);max-width:560px}
+.sgrid .hd{font-family:Oswald;text-align:center;padding:4px 0}
+.cell{border:1px dashed var(--line);padding:6px;min-height:86px;background:var(--surface)}
+.cell input,.cell select{width:100%;border:1px solid var(--line);padding:3px 5px;font-size:.78rem;margin-top:3px}
+.cell .x{float:right;border:0;background:none;color:var(--red);cursor:pointer;font-weight:900}
+.trow input{width:100%;border:1px solid var(--line);padding:4px 6px;font-size:.78rem}
+fieldset{border:1px solid var(--line);padding:12px;margin-bottom:14px}
+legend{font-weight:900;padding:0 8px}
+.nitem-ed{border:1px solid var(--line);padding:12px;margin-bottom:10px;background:var(--surface)}
+.nitem-ed input{width:100%;border:1px solid var(--line);padding:7px 9px;font-weight:700}
+.nitem-ed textarea{margin-top:8px;min-height:70px}
+.prow-ed{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.prow-ed span{flex:1}
+.prow-ed input{width:120px;border:1px solid var(--line);padding:6px 8px}
+@media(max-width:880px){.sgrid{grid-template-columns:90px repeat(5,minmax(120px,1fr));overflow-x:auto}}
+.scroll-x{overflow-x:auto}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="box">
+    <h1><i>HCF</i> 後台管理</h1>
+    <p>新竹格鬥館 · 數據／名單／內容</p>
+    <input id="pw" type="password" placeholder="管理密碼" autocomplete="current-password">
+    <button id="loginBtn">登入</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<div id="app" class="hide">
+<header>
+  <b><i>HCF</i> ADMIN</b>
+  <nav>
+    <button data-t="dash" class="on">儀表板</button>
+    <button data-t="leads">名單</button>
+    <button data-t="content">內容管理</button>
+    <button data-t="sys">系統</button>
+  </nav>
+  <button id="logout">登出</button>
+</header>
+<main>
+
+  <!-- 儀表板 -->
+  <section id="t-dash">
+    <div class="toolbar">
+      <select id="days"><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="90">近 90 天</option></select>
+      <span class="hint" id="dashHint"></span>
+    </div>
+    <div class="cards" id="kpis"></div>
+    <div class="panel"><h3>每日趨勢</h3><canvas id="trend" height="110"></canvas></div>
+    <div class="row2">
+      <div class="panel"><h3>轉換漏斗</h3><canvas id="funnel" height="170"></canvas></div>
+      <div class="panel"><h3>五大目標點擊</h3><canvas id="goalsC" height="170"></canvas></div>
+    </div>
+    <div class="row2">
+      <div class="panel"><h3>熱門頁面</h3><table id="topPages"></table></div>
+      <div class="panel"><h3>AI 客服最常被問</h3><table id="topQ"></table></div>
+    </div>
+  </section>
+
+  <!-- 名單 -->
+  <section id="t-leads" class="hide">
+    <div class="toolbar">
+      <select id="leadFilter"><option value="">全部狀態</option><option value="new">新名單</option><option value="contacted">已聯絡</option><option value="won">已成交</option><option value="lost">無效</option></select>
+      <a class="btn gray" href="/api/admin/leads.csv">下載 CSV</a>
+      <span class="hint" id="leadCount"></span>
+    </div>
+    <div class="panel scroll-x"><table id="leadTable"></table></div>
+  </section>
+
+  <!-- 內容管理 -->
+  <section id="t-content" class="hide">
+    <div class="panel">
+      <h3>全站公告列</h3>
+      <p class="hint">開啟後，官網每一頁最上方會出現紅色公告列。</p>
+      <div class="toolbar" style="margin-top:10px">
+        <label><input type="checkbox" id="annOn"> 顯示公告</label>
+      </div>
+      <input id="annText" style="width:100%;border:1.5px solid var(--line);padding:10px" placeholder="公告文字，例如：🥊 防身研習營 3/1 開班，問卷登記享早鳥">
+      <input id="annLink" style="width:100%;border:1.5px solid var(--line);padding:10px;margin-top:8px" placeholder="點擊連結（選填），例如 survey.html">
+      <div class="toolbar" style="margin-top:12px"><button class="btn" id="saveAnn">儲存公告</button><span id="annMsg" class="ok"></span></div>
+    </div>
+
+    <div class="panel">
+      <h3>最新課表</h3>
+      <p class="hint">直接編輯格子即可；分類決定卡片顏色（泰拳紅／散打黃／踢拳灰／體能綠）。清空課名＝該格停課。儲存後官網「最新課表」立即更新。</p>
+      <div id="schedEditor" style="margin-top:12px"></div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn" id="saveSched">儲存課表</button><button class="btn line" id="resetSched">還原成官網目前版本</button><span id="schedMsg" class="ok"></span></div>
+    </div>
+
+    <div class="panel">
+      <h3>每月公告（最新資訊頁）</h3>
+      <p class="hint">每一則＝一個區塊；內容一行一個項目符號。</p>
+      <div id="newsEditor" style="margin-top:12px"></div>
+      <div class="toolbar"><button class="btn line" id="addNews">＋ 新增一則</button><button class="btn" id="saveNews">儲存公告</button><span id="newsMsg" class="ok"></span></div>
+    </div>
+
+    <div class="panel">
+      <h3>價格（課程方案頁＋最新資訊補給箱）</h3>
+      <p class="hint">只改數字，版面不動。留空＝維持網頁原價。</p>
+      <div id="priceEditor" style="margin-top:12px"></div>
+      <div class="toolbar"><button class="btn" id="savePrice">儲存價格</button><span id="priceMsg" class="ok"></span></div>
+    </div>
+  </section>
+
+  <!-- 系統 -->
+  <section id="t-sys" class="hide">
+    <div class="panel">
+      <h3>備份與還原</h3>
+      <div class="toolbar">
+        <a class="btn gray" href="/api/admin/export">下載完整備份（JSON）</a>
+        <label class="btn line" style="cursor:pointer">上傳還原<input type="file" id="importFile" accept=".json" class="hide"></label>
+        <span id="sysMsg" class="ok"></span>
+      </div>
+      <p class="hint">備份含：名單、公告、課表、消息、價格與近 90 天事件。換主機時下載→新主機上傳即可。</p>
+    </div>
+    <div class="panel">
+      <h3>安全提醒</h3>
+      <p class="hint" id="pwHint">管理密碼由主機環境變數 ADMIN_PASSWORD 設定；部署時務必更改預設值。</p>
+    </div>
+  </section>
+
+</main>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const api=(p,opt)=>fetch(p,Object.assign({headers:{'Content-Type':'application/json'}},opt)).then(r=>{if(r.status===401){show(false);throw 0}return r.json()});
+function show(inApp){$('#login').classList.toggle('hide',inApp);$('#app').classList.toggle('hide',!inApp);}
+
+/* ---------- 登入 ---------- */
+$('#loginBtn').onclick=async()=>{
+  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#pw').value})});
+  const d=await r.json();
+  if(r.ok){show(true);if(d.defaultPw)$('#pwHint').innerHTML='⚠️ 目前使用<b>預設密碼</b>，請到主機設定 ADMIN_PASSWORD 後重啟！';boot();}
+  else $('#loginErr').textContent=d.error||'登入失敗';
+};
+$('#pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginBtn').click()});
+$('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST'});show(false);};
+
+/* ---------- 分頁 ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  ['dash','leads','content','sys'].forEach(t=>$('#t-'+t).classList.toggle('hide',t!==b.dataset.t));
+});
+
+/* ---------- 儀表板 ---------- */
+let charts={};
+function chart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($('#'+id),cfg);}
+async function loadDash(){
+  const days=$('#days').value;
+  const s=await api('/api/admin/stats?days='+days);
+  $('#dashHint').textContent='共 '+Object.values(s.totals).reduce((a,b)=>a+b,0)+' 筆事件';
+  const K=[['page_view','頁面瀏覽'],['cta_booking','預約點擊'],['cta_line','LINE 點擊'],['survey_submit','問卷名單'],['ai_question','AI 提問'],['social_click','社群點擊']];
+  $('#kpis').innerHTML=K.map(([k,l])=>'<div class="card"><div class="n">'+(s.totals[k]||0)+'</div><div class="l">'+l+'</div></div>').join('');
+  const dates=[...Array(+days)].map((_,i)=>new Date(Date.now()-(+days-1-i)*864e5).toISOString().slice(0,10));
+  const line=(k)=>dates.map(d=>(s.byDay[d]||{})[k]||0);
+  chart('trend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[
+    {label:'瀏覽',data:line('page_view'),borderColor:'#111',tension:.3},
+    {label:'預約點擊',data:line('cta_booking'),borderColor:'#C81015',tension:.3},
+    {label:'問卷名單',data:line('survey_submit'),borderColor:'#0F9D63',tension:.3}]},
+    options:{plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
+  const f=s.funnel;
+  chart('funnel',{type:'bar',data:{labels:['瀏覽','看課程/課表','點預約/LINE','留下名單'],datasets:[{data:[f.pv,f.interest,f.intent,f.lead],backgroundColor:['#111','#4A4A4A','#C81015','#0F9D63']}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}}});
+  const GN={'01':'泰拳技術','02':'燃脂減重','03':'體能提升','04':'實戰能力','05':'選手培訓'};
+  chart('goalsC',{type:'doughnut',data:{labels:Object.keys(s.goals).map(g=>GN[g]||g),datasets:[{data:Object.values(s.goals),backgroundColor:['#C81015','#E8A800','#0F9D63','#111','#7E8798']}]},
+    options:{plugins:{legend:{position:'bottom'}}}});
+  $('#topPages').innerHTML='<tr><th>頁面</th><th>瀏覽</th></tr>'+(s.topPages.map(([p,n])=>'<tr><td>'+p+'</td><td>'+n+'</td></tr>').join('')||'<tr><td colspan=2 class="hint">尚無資料</td></tr>');
+  $('#topQ').innerHTML='<tr><th>問題</th><th>次數</th></tr>'+(s.topQuestions.map(([q,n])=>'<tr><td>'+q.replace(/</g,'&lt;')+'</td><td>'+n+'</td></tr>').join('')||'<tr><td colspan=2 class="hint">尚無資料</td></tr>');
+}
+$('#days').onchange=loadDash;
+
+/* ---------- 名單 ---------- */
+const ST={new:['新名單','t-new'],contacted:['已聯絡','t-contacted'],won:['已成交','t-won'],lost:['無效','t-lost']};
+let LEADS=[];
+async function loadLeads(){
+  LEADS=await api('/api/admin/leads');
+  renderLeads();
+}
+function renderLeads(){
+  const f=$('#leadFilter').value;
+  const rows=LEADS.filter(L=>!f||L.status===f).sort((a,b)=>b.ts-a.ts);
+  $('#leadCount').textContent=rows.length+' 筆';
+  $('#leadTable').innerHTML='<tr><th>時間</th><th>姓名</th><th>聯絡方式</th><th>來源</th><th>狀態</th><th>備註</th></tr>'+
+    (rows.map(L=>'<tr><td>'+new Date(L.ts).toLocaleString('zh-TW',{hour12:false}).slice(0,-3)+'</td><td>'+esc(L.name)+'</td><td>'+esc(L.contact)+'</td><td>'+esc(L.source)+'</td>'+
+      '<td><select class="st" data-id="'+L.id+'">'+Object.entries(ST).map(([k,[l]])=>'<option value="'+k+'"'+(L.status===k?' selected':'')+'>'+l+'</option>').join('')+'</select></td>'+
+      '<td><input style="width:100%;border:1px solid var(--line);padding:4px" data-note="'+L.id+'" value="'+esc(L.note)+'" placeholder="備註…"></td></tr>').join('')||'<tr><td colspan=6 class="hint">尚無名單——問卷送出後會自動出現在這裡</td></tr>');
+}
+const esc=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+$('#leadFilter').onchange=renderLeads;
+$('#leadTable').addEventListener('change',async e=>{
+  const id=e.target.dataset.id||e.target.dataset.note;if(!id)return;
+  const L=LEADS.find(x=>x.id===id);
+  if(e.target.dataset.id)L.status=e.target.value;else L.note=e.target.value;
+  await api('/api/admin/leads',{method:'POST',body:JSON.stringify({id,status:L.status,note:L.note})});
+});
+
+/* ---------- 內容：公告 ---------- */
+async function loadAnn(){
+  const {value}=await api('/api/admin/content/announcement');
+  $('#annOn').checked=!!(value&&value.on);
+  $('#annText').value=value&&value.text||'';
+  $('#annLink').value=value&&value.link||'';
+}
+$('#saveAnn').onclick=async()=>{
+  await api('/api/admin/content/announcement',{method:'POST',body:JSON.stringify({value:{on:$('#annOn').checked,text:$('#annText').value.trim(),link:$('#annLink').value.trim()}})});
+  flash('#annMsg');
+};
+
+/* ---------- 內容：課表 ---------- */
+const CATS=[['mt','泰拳(紅)'],['sanda','散打(黃)'],['kb','踢拳(灰)'],['sc','體能(綠)']];
+const DEFAULT_SCHED={
+ wt:[{s:'11:00',e:'12:00'},{s:'15:00',e:'15:50'},{s:'19:30',e:'20:30'},{s:'20:40',e:'21:30'}],
+ et:[{s:'11:00',e:'12:00'},{s:'12:10',e:'13:00'}],
+ weekday:[[null,null,{cat:'sc',lv:1,zh:'肌力體能',en:'S&C',note:'壺鈴啞鈴循環，打造易瘦體質與功能性力量'},{cat:'sanda',lv:1,zh:'散打摔法',en:'TAKEDOWNS',note:'抱摔、過肩摔與防摔，貼身重心爭奪'},{cat:'sc',lv:1,zh:'肌力體能',en:'S&C',note:'深蹲硬舉推拉＋爆發，格鬥技術的地基'}],
+  [null,null,{cat:'mt',lv:1,zh:'泰拳燃脂',en:'CARDIO',note:'高密度打靶循環，一堂約 600–800 大卡'},null,null],
+  [{cat:'mt',lv:1,zh:'新手泰拳',en:'MUAY THAI',note:'站架步法×直拳掃踢，零基礎友善、不對打'},{cat:'kb',lv:1,zh:'踢拳腿連擊',en:'KICKBOXING',note:'拳腿連擊組合，快節奏雕塑下半身線條'},{cat:'mt',lv:1,zh:'新手泰拳',en:'MUAY THAI',note:'站架步法×直拳掃踢，零基礎友善、不對打'},{cat:'mt',lv:1,zh:'新手泰拳',en:'MUAY THAI',note:'站架步法×直拳掃踢，零基礎友善、不對打'},{cat:'mt',lv:1,zh:'新手泰拳',en:'MUAY THAI',note:'站架步法×直拳掃踢，零基礎友善、不對打'}],
+  [{cat:'mt',lv:2,zh:'泰拳腿肘膝實戰',en:'SPARRING',note:'護具下條件對練，距離・時機・攻防轉換'},{cat:'kb',lv:2,zh:'踢拳遠距阻擊',en:'RANGE DRILL',note:'前手控距、阻擊反擊的時機與反射'},{cat:'mt',lv:2,zh:'泰拳實戰技術',en:'TECH SPAR',note:'組合技假動作×自由對練複盤'},{cat:'mt',lv:1,zh:'泰拳燃脂',en:'CARDIO',note:'高密度打靶循環，下班來紓壓兼燃脂'},{cat:'mt',lv:2,zh:'泰拳腿肘膝實戰',en:'SPARRING',note:'護具下條件對練，距離・時機・攻防轉換'}]],
+ weekend:[[{cat:'mt',lv:1,zh:'新手泰拳',en:'MUAY THAI',note:'站架步法×直拳掃踢，零基礎友善、不對打'},{cat:'sanda',lv:1,zh:'散打遠踢近摔',en:'SANDA',note:'遠踢控距、近身入摔的距離轉換'}],
+  [null,{cat:'sanda',lv:1,zh:'散打拳腿運用',en:'STRIKING',note:'拳腿組合與時機，散打打擊核心'}]]
+};
+let SCHED=null;
+function cellHTML(c,grid,r,i){
+  c=c||{};
+  return '<div class="cell" data-g="'+grid+'" data-r="'+r+'" data-i="'+i+'">'+
+   '<button class="x" title="清空">✕</button>'+
+   '<input class="f-zh" placeholder="課名（空＝停課）" value="'+esc(c.zh||'')+'">'+
+   '<input class="f-en" placeholder="英文小標" value="'+esc(c.en||'')+'">'+
+   '<select class="f-cat">'+CATS.map(([v,l])=>'<option value="'+v+'"'+(c.cat===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
+   '<select class="f-lv"><option value="1"'+(c.lv!==2?' selected':'')+'>LV.1</option><option value="2"'+(c.lv===2?' selected':'')+'>LV.2</option></select>'+
+   '<input class="f-note" placeholder="一句課程說明" value="'+esc(c.note||'')+'">'+
+  '</div>';
+}
+function renderSched(){
+  const D=['MON 週一','TUE 週二','WED 週三','THU 週四','FRI 週五'],E=['SAT 週六','SUN 週日'];
+  let h='<div class="sgrid"><div></div>'+D.map(d=>'<div class="hd">'+d+'</div>').join('')+'</div>';
+  SCHED.wt.forEach((t,r)=>{
+    h+='<div class="sgrid"><div class="trow"><input class="ts" data-g="wt" data-r="'+r+'" data-k="s" value="'+t.s+'"><input class="ts" data-g="wt" data-r="'+r+'" data-k="e" value="'+t.e+'"></div>'+
+      SCHED.weekday[r].map((c,i)=>cellHTML(c,'weekday',r,i)).join('')+'</div>';
+  });
+  h+='<div style="font-family:Oswald;letter-spacing:.2em;margin:14px 0 6px">WEEKEND // 週末</div>';
+  h+='<div class="sgrid we"><div></div>'+E.map(d=>'<div class="hd">'+d+'</div>').join('')+'</div>';
+  SCHED.et.forEach((t,r)=>{
+    h+='<div class="sgrid we"><div class="trow"><input class="ts" data-g="et" data-r="'+r+'" data-k="s" value="'+t.s+'"><input class="ts" data-g="et" data-r="'+r+'" data-k="e" value="'+t.e+'"></div>'+
+      SCHED.weekend[r].map((c,i)=>cellHTML(c,'weekend',r,i)).join('')+'</div>';
+  });
+  $('#schedEditor').innerHTML=h;
+}
+function collectSched(){
+  document.querySelectorAll('#schedEditor .ts').forEach(inp=>{SCHED[inp.dataset.g][inp.dataset.r][inp.dataset.k]=inp.value.trim();});
+  document.querySelectorAll('#schedEditor .cell').forEach(cell=>{
+    const g=cell.dataset.g,r=+cell.dataset.r,i=+cell.dataset.i;
+    const zh=cell.querySelector('.f-zh').value.trim();
+    SCHED[g][r][i]=zh?{zh,en:cell.querySelector('.f-en').value.trim(),cat:cell.querySelector('.f-cat').value,lv:+cell.querySelector('.f-lv').value,note:cell.querySelector('.f-note').value.trim()}:null;
+  });
+}
+$('#schedEditor')?.addEventListener?.('click',()=>{});
+document.addEventListener('click',e=>{
+  if(e.target.classList.contains('x')&&e.target.closest('#schedEditor')){
+    const cell=e.target.closest('.cell');cell.querySelectorAll('input').forEach(i=>i.value='');
+  }
+});
+async function loadSched(){
+  const {value}=await api('/api/admin/content/schedule');
+  SCHED=value||JSON.parse(JSON.stringify(DEFAULT_SCHED));
+  renderSched();
+}
+$('#saveSched').onclick=async()=>{collectSched();await api('/api/admin/content/schedule',{method:'POST',body:JSON.stringify({value:SCHED})});flash('#schedMsg');};
+$('#resetSched').onclick=()=>{SCHED=JSON.parse(JSON.stringify(DEFAULT_SCHED));renderSched();};
+
+/* ---------- 內容：消息 ---------- */
+let NEWS=[];
+function renderNews(){
+  $('#newsEditor').innerHTML=NEWS.map((n,i)=>'<div class="nitem-ed" data-i="'+i+'">'+
+    '<input class="nt" placeholder="標題" value="'+esc(n.title)+'">'+
+    '<textarea class="nl" placeholder="內容（一行一條）">'+esc((n.lines||[]).join('\n'))+'</textarea>'+
+    '<div class="toolbar" style="margin-top:8px"><button class="btn line ndel">刪除這則</button></div></div>').join('')||'<p class="hint">尚無公告，按「新增一則」開始。</p>';
+}
+document.addEventListener('click',e=>{
+  if(e.target.classList.contains('ndel')){NEWS.splice(+e.target.closest('.nitem-ed').dataset.i,1);renderNews();}
+});
+function collectNews(){
+  NEWS=[...document.querySelectorAll('.nitem-ed')].map(el=>({title:el.querySelector('.nt').value.trim(),lines:el.querySelector('.nl').value.split('\n').map(s=>s.trim()).filter(Boolean)})).filter(n=>n.title);
+}
+$('#addNews').onclick=()=>{collectNews();NEWS.push({title:'',lines:[]});renderNews();};
+$('#saveNews').onclick=async()=>{collectNews();await api('/api/admin/content/news',{method:'POST',body:JSON.stringify({value:NEWS})});flash('#newsMsg');renderNews();};
+async function loadNews(){const{value}=await api('/api/admin/content/news');NEWS=value||[];renderNews();}
+
+/* ---------- 內容：價格 ---------- */
+const PRICE_KEYS=[
+ ['團體課',[['p_g_trial','首堂體驗'],['p_g_1','單堂'],['p_g_10','10 堂'],['p_g_30','30 堂'],['p_max','MAX 無限方案／月']]],
+ ['一對一私人課',[['p11_t1','體驗 1 堂'],['p11_t2','體驗 2 堂'],['p11_1','單堂'],['p11_10','10 堂'],['p11_20','20 堂'],['p11_30','30 堂']]],
+ ['一對二私人課',[['p12_t1','體驗 1 堂'],['p12_10','10 堂'],['p12_20','20 堂']]],
+ ['私人打靶課',[['pad_1','單堂'],['pad_10','10 堂']]],
+ ['最新資訊・新生補給箱',[['kit_group','團體課體驗'],['kit_p1','私人教練 1 堂'],['kit_p2','私人教練 2 堂']]]
+];
+let PRICE={};
+function renderPrice(){
+  $('#priceEditor').innerHTML=PRICE_KEYS.map(([g,rows])=>'<fieldset><legend>'+g+'</legend>'+
+    rows.map(([k,l])=>'<div class="prow-ed"><span>'+l+'</span><input data-pk="'+k+'" placeholder="例 $1,400" value="'+esc(PRICE[k]||'')+'"></div>').join('')+'</fieldset>').join('');
+}
+$('#savePrice').onclick=async()=>{
+  PRICE={};document.querySelectorAll('#priceEditor [data-pk]').forEach(i=>{if(i.value.trim())PRICE[i.dataset.pk]=i.value.trim();});
+  await api('/api/admin/content/pricing',{method:'POST',body:JSON.stringify({value:PRICE})});flash('#priceMsg');
+};
+async function loadPrice(){const{value}=await api('/api/admin/content/pricing');PRICE=value||{};renderPrice();}
+
+/* ---------- 系統 ---------- */
+$('#importFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  const txt=await f.text();
+  await api('/api/admin/import',{method:'POST',body:txt});
+  $('#sysMsg').textContent='還原完成 ✓';loadAll();
+};
+
+function flash(sel){$(sel).textContent='已儲存 ✓';setTimeout(()=>$(sel).textContent='',2500);}
+function loadAll(){loadDash();loadLeads();loadAnn();loadSched();loadNews();loadPrice();}
+function boot(){loadAll();}
+
+/* 已有 cookie 時自動進入 */
+api('/api/admin/stats?days=7').then(()=>{show(true);boot();}).catch(()=>{});
+</script>
+</body>
+</html>
