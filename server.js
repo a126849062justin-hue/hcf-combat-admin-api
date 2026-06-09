@@ -82,7 +82,7 @@ async function stats(days){
   const evs=await store.events(since);
   const byDay={},totals={},pages={},questions={},goals={};
   for(const e of evs){
-    const d=new Date(e.ts).toISOString().slice(0,10);
+    const d=new Date(+e.ts).toISOString().slice(0,10);
     byDay[d]=byDay[d]||{};
     byDay[d][e.name]=(byDay[d][e.name]||0)+1;
     totals[e.name]=(totals[e.name]||0)+1;
