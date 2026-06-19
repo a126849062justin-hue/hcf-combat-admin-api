@@ -73,6 +73,31 @@ const parse=s=>{try{return JSON.parse(s)}catch(e){return null}};
 const cors={'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'};
 const loginFail={}; // 簡易暴力破解防護：IP → {n,until}
 
+/* ---------------- LINE 官方帳號通知 ---------------- */
+const LINE_TOKEN=process.env.LINE_TOKEN||'';   // Channel Access Token（Render 環境變數）
+const LINE_SECRET=process.env.LINE_SECRET||''; // Channel Secret（驗證 webhook 簽章）
+async function linePush(to,text){
+  if(!LINE_TOKEN||!to)return;
+  try{
+    await fetch('https://api.line.me/v2/bot/message/push',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+LINE_TOKEN},
+      body:JSON.stringify({to,messages:[{type:'text',text:String(text).slice(0,4900)}]})});
+  }catch(e){}
+}
+async function lineReply(replyToken,text){
+  if(!LINE_TOKEN||!replyToken)return;
+  try{
+    await fetch('https://api.line.me/v2/bot/message/reply',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+LINE_TOKEN},
+      body:JSON.stringify({replyToken,messages:[{type:'text',text:String(text).slice(0,4900)}]})});
+  }catch(e){}
+}
+const lineSigOK=(raw,sig)=>{
+  if(!LINE_SECRET)return false;
+  const h=crypto.createHmac('sha256',LINE_SECRET).update(raw).digest('base64');
+  try{return sig&&crypto.timingSafeEqual(Buffer.from(h),Buffer.from(sig));}catch(e){return false;}
+};
+
 const CONTENT_KEYS=['announcement','schedule','news','pricing'];
 const EVENT_WHITELIST=new Set(['page_view','cta_booking','cta_line','cta_phone','social_click','survey_tab_click','survey_submit','nav_survey','nav_schedule','nav_group','nav_private','nav_goals','ai_open','ai_question','scroll_50','scroll_90']);
 
@@ -124,8 +149,29 @@ const server=http.createServer(async(req,res)=>{
           payload:typeof d.payload==='object'?d.payload:{}});
         await store.set('leads',leads);
         await store.addEvent({ts:Date.now(),name:'survey_submit',params:{via:'lead-api'}});
+        /* 新名單即時推 LINE 通知（已綁定通知對象才推） */
+        const lead=leads[leads.length-1];
+        const to=await store.get('line_to');
+        if(to){
+          const pl=lead.payload||{};
+          const extra=['身分','獎勵'].map(k=>pl[k]?k+'：'+pl[k]:'').filter(Boolean).join('\n');
+          await linePush(to,'🔔 HCF 新名單\n姓名：'+(lead.name||'（未填）')+'\n聯絡：'+(lead.contact||'（未填）')+'\n來源：'+lead.source+(extra?'\n'+extra:'')+'\n\n到後台查看：https://hcf-admin.onrender.com');
+        }
       }
       return json(res,200,{ok:true},cors);
+    }
+    /* ===== LINE Webhook：你對官方帳號傳一則訊息，自動綁定為通知接收者 ===== */
+    if(p==='/api/line/webhook'&&req.method==='POST'){
+      const raw=await body(req);
+      if(!lineSigOK(raw,req.headers['x-line-signature'])){res.writeHead(401);return res.end('bad sig');}
+      const data=parse(raw)||{};
+      for(const ev of (data.events||[])){
+        if(ev.type==='message'&&ev.source&&ev.source.userId){
+          await store.set('line_to',ev.source.userId);
+          await lineReply(ev.replyToken,'✅ 新名單通知已開啟！\n之後有人填問卷領獎，會即時推到這裡 🦈');
+        }
+      }
+      return json(res,200,{ok:true});
     }
     if(p==='/api/public/content'&&req.method==='GET'){
       const out={};
