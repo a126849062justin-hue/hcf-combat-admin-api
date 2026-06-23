@@ -282,7 +282,7 @@ function cellHTML(c,grid,r,i){
    '<input class="f-zh" placeholder="課名（空＝停課）" value="'+esc(c.zh||'')+'">'+
    '<input class="f-en" placeholder="英文小標" value="'+esc(c.en||'')+'">'+
    '<select class="f-cat">'+CATS.map(([v,l])=>'<option value="'+v+'"'+(c.cat===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
-   '<select class="f-lv"><option value="1"'+(c.lv!==2?' selected':'')+'>LV.1</option><option value="2"'+(c.lv===2?' selected':'')+'>LV.2</option></select>'+
+   '<select class="f-lv"><option value="1"'+(+c.lv!==2&&+c.lv!==3?' selected':'')+'>LV.1</option><option value="2"'+(+c.lv===2?' selected':'')+'>LV.2</option><option value="3"'+(+c.lv===3?' selected':'')+'>LV.3</option></select>'+
    '<input class="f-note" placeholder="一句課程說明" value="'+esc(c.note||'')+'">'+
   '</div>';
 }
