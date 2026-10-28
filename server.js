@@ -101,23 +101,47 @@ const lineSigOK=(raw,sig)=>{
 const CONTENT_KEYS=['announcement','schedule','news','pricing'];
 const EVENT_WHITELIST=new Set(['page_view','cta_booking','cta_line','cta_phone','social_click','survey_tab_click','survey_submit','nav_survey','nav_schedule','nav_group','nav_private','nav_goals','ai_open','ai_question','scroll_50','scroll_90']);
 
+const GROWTH_EVENTS = new Set(['shark_guide_start','shark_guide_complete','shark_booking_click','shark_minimize','booking_prefill','booking_start','booking_step_view','booking_step_complete','booking_step_leave','booking_edit','booking_submit_success','booking_submit_failure','booking_line_open','booking_copy','booking_entry','first_visit_view','first_visit_video','design_case_view','design_case_entry','design_inquiry_click']);
+for(const name of GROWTH_EVENTS) EVENT_WHITELIST.add(name);
+function growthParams(raw){
+  const p=raw&&typeof raw==='object'?raw:{},safe={version:'20261027'};
+  if(['direct','google','instagram','facebook','youtube','threads','referral'].includes(p.source))safe.source=p.source;
+  if(typeof p.page==='string'&&/^\/[a-zA-Z0-9/_\-.]{0,89}$/.test(p.page))safe.page=p.page;
+  if(Number.isInteger(p.step)&&p.step>=1&&p.step<=4)safe.step=p.step;
+  if(['manual','automatic'].includes(p.mode))safe.mode=p.mode;
+  if(['beginner','cardio','intermediate','private'].includes(p.course))safe.course=p.course;
+  return safe;
+}
+const taipeiDate=ts=>new Date(Number(ts)+8*3600e3).toISOString().slice(0,10);
+function validOutcome(d){
+  if(!d||!/^\d{4}-\d{2}-\d{2}$/.test(d.date)||!Number.isFinite(Date.parse(d.date+'T00:00:00Z'))||new Date(d.date+'T00:00:00Z').toISOString().slice(0,10)!==d.date||d.date>taipeiDate(Date.now()))return false;
+  if(!['combat','design'].includes(d.brand))return false;
+  return ['confirmed','attended','won'].every(k=>Number.isInteger(d[k])&&d[k]>=0&&d[k]<=10000);
+}
+
 /* ---------------- 統計聚合 ---------------- */
 async function stats(days){
   const since=Date.now()-days*864e5;
   const evs=await store.events(since);
-  const byDay={},totals={},pages={},questions={},goals={};
+  const byDay={},totals={},pages={},questions={},goals={},sources={},steps={},courses={};
   for(const e of evs){
-    const d=new Date(+e.ts).toISOString().slice(0,10);
+    const d=taipeiDate(e.ts);
     byDay[d]=byDay[d]||{};
     byDay[d][e.name]=(byDay[d][e.name]||0)+1;
     totals[e.name]=(totals[e.name]||0)+1;
     const p=e.params||{};
+    if(GROWTH_EVENTS.has(e.name)){
+      const src=p.source||'direct';sources[src]=sources[src]||{};sources[src][e.name]=(sources[src][e.name]||0)+1;
+      if(e.name==='booking_step_complete'&&p.step)steps[p.step]=(steps[p.step]||0)+1;
+      if(e.name==='shark_guide_complete'&&p.course)courses[p.course]=(courses[p.course]||0)+1;
+    }
     if(e.name==='page_view'&&p.page)pages[p.page]=(pages[p.page]||0)+1;
     if(e.name==='ai_question'&&p.q)questions[p.q]=(questions[p.q]||0)+1;
     if(e.name==='nav_goals'&&p.goal)goals[p.goal]=(goals[p.goal]||0)+1;
   }
   const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n);
-  return{days,byDay,totals,topPages:top(pages,10),topQuestions:top(questions,10),goals,
+  const outcomes=((await store.get('outcomes'))||[]).filter(r=>r.date>=taipeiDate(since)&&r.date<=taipeiDate(Date.now()));
+  return{version:'20261027',days,byDay,totals,sources,steps,courses,outcomes,topPages:top(pages,10),topQuestions:top(questions,10),goals,
     funnel:{pv:totals.page_view||0,
       interest:(totals.nav_goals||0)+(totals.nav_group||0)+(totals.nav_private||0)+(totals.nav_schedule||0),
       intent:(totals.cta_booking||0)+(totals.cta_line||0)+(totals.cta_phone||0),
@@ -132,10 +156,11 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='OPTIONS'){res.writeHead(204,cors);return res.end();}
 
     /* ===== 公開 API（給官網用，CORS 開放） ===== */
+    if(p==='/api/health'&&req.method==='GET')return json(res,200,{ok:true,version:'20261027'},Object.assign({'Cache-Control':'no-store'},cors));
     if(p==='/api/track'&&req.method==='POST'){
       const e=parse(await body(req));
       if(e&&EVENT_WHITELIST.has(e.name)){
-        await store.addEvent({ts:Date.now(),name:e.name,params:typeof e.params==='object'?e.params:{}});
+        await store.addEvent({ts:Date.now(),name:e.name,params:GROWTH_EVENTS.has(e.name)?growthParams(e.params):(e.params&&typeof e.params==='object'?e.params:{})});
       }
       return json(res,204===204?200:200,{ok:true},cors);
     }
@@ -201,6 +226,15 @@ const server=http.createServer(async(req,res)=>{
     if(p.startsWith('/api/admin/')){
       if(!checkToken(cookieToken(req)))return json(res,401,{error:'unauthorized'});
       if(p==='/api/admin/stats')return json(res,200,await stats(Math.min(90,+u.searchParams.get('days')||30)));
+      if(p==='/api/admin/outcomes'&&req.method==='POST'){
+        const d=parse(await body(req));
+        if(!validOutcome(d))return json(res,400,{error:'請填寫有效日期及非負整數；日期不可晚於今天。'});
+        const rows=(await store.get('outcomes'))||[];
+        const row={date:d.date,brand:d.brand,confirmed:d.confirmed,attended:d.attended,won:d.won};
+        const index=rows.findIndex(r=>r.date===row.date&&r.brand===row.brand);
+        if(index<0)rows.push(row);else rows[index]=row;
+        await store.set('outcomes',rows);return json(res,200,{ok:true});
+      }
       if(p==='/api/admin/leads'&&req.method==='GET')return json(res,200,(await store.get('leads'))||[]);
       if(p==='/api/admin/leads'&&req.method==='POST'){ // 更新單筆 {id,status,note}
         const d=parse(await body(req))||{};
@@ -223,7 +257,7 @@ const server=http.createServer(async(req,res)=>{
         if(req.method==='POST'){const d=parse(await body(req));await store.set(mC[1],d?d.value:null);return json(res,200,{ok:true});}
       }
       if(p==='/api/admin/export'){
-        const out={exportedAt:new Date().toISOString(),leads:await store.get('leads')};
+        const out={exportedAt:new Date().toISOString(),leads:await store.get('leads'),outcomes:await store.get('outcomes')};
         for(const k of CONTENT_KEYS)out[k]=await store.get(k);
         out.events=await store.events(Date.now()-90*864e5);
         res.writeHead(200,{'Content-Type':'application/json','Content-Disposition':'attachment; filename="hcf-backup.json"'});
@@ -233,6 +267,7 @@ const server=http.createServer(async(req,res)=>{
         const d=parse(await body(req));
         if(!d)return json(res,400,{error:'格式錯誤'});
         if(Array.isArray(d.leads))await store.set('leads',d.leads);
+        if(Array.isArray(d.outcomes)&&d.outcomes.every(validOutcome))await store.set('outcomes',d.outcomes);
         for(const k of CONTENT_KEYS)if(k in d)await store.set(k,d[k]);
         if(Array.isArray(d.events))for(const e of d.events)await store.addEvent(e);
         return json(res,200,{ok:true});
