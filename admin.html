@@ -101,6 +101,10 @@ legend{font-weight:900;padding:0 8px}
       <span class="hint" id="dashHint"></span>
     </div>
     <div class="cards" id="kpis"></div>
+    <div class="panel"><h3>招生與設計成效</h3><p class="hint">以下為操作次數，非不重複人數。開啟 LINE 不代表訊息已傳送或預約成立。新事件自功能上線後累積，不會補算過去資料。</p><div class="row2"><div><h4>格鬥招生</h4><table id="growthCombat"></table></div><div><h4>設計品牌</h4><table id="growthDesign"></table></div></div></div>
+    <div class="row2"><div class="panel"><h3>預約各步完成次數</h3><table id="growthSteps"></table></div><div class="panel"><h3>小鯊推薦課程</h3><table id="growthCourses"></table></div></div>
+    <div class="panel scroll-x"><h3>流量來源與詢問入口</h3><p class="hint">依同一分頁的首次來源分類；瀏覽器未提供來源時歸入直接／未知。網站資料無法得知外站實際成交。</p><table id="growthSources"></table></div>
+    <div class="panel"><h3>教練／業務回填實際成果</h3><p class="hint">填寫當天各項發生次數；同日期與品牌再次儲存會更新原紀錄。只填總數，不填姓名或身體狀況。設計品牌的「到館／諮詢」指已完成諮詢。</p><form id="outcomeForm" class="toolbar"><label>日期 <input type="date" id="outcomeDate" required></label><label>品牌 <select id="outcomeBrand"><option value="combat">格鬥招生</option><option value="design">設計品牌</option></select></label><label>確認預約 <input id="outcomeConfirmed" type="number" min="0" max="10000" required value="0" style="width:80px"></label><label>到館／諮詢 <input id="outcomeAttended" type="number" min="0" max="10000" required value="0" style="width:80px"></label><label>成交 <input id="outcomeWon" type="number" min="0" max="10000" required value="0" style="width:80px"></label><button class="btn" type="submit">儲存當日成果</button><span id="outcomeStatus" role="status"></span></form><div class="scroll-x"><table id="growthOutcomes"></table></div></div>
     <div class="panel"><h3>每日趨勢</h3><canvas id="trend" height="110"></canvas></div>
     <div class="row2">
       <div class="panel"><h3>轉換漏斗</h3><canvas id="funnel" height="170"></canvas></div>
@@ -204,10 +208,11 @@ function chart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($
 async function loadDash(){
   const days=$('#days').value;
   const s=await api('/api/admin/stats?days='+days);
+  renderGrowth(s);
   $('#dashHint').textContent='共 '+Object.values(s.totals).reduce((a,b)=>a+b,0)+' 筆事件';
   const K=[['page_view','頁面瀏覽'],['cta_booking','預約點擊'],['cta_line','LINE 點擊'],['survey_submit','問卷名單'],['ai_question','AI 提問'],['social_click','社群點擊']];
   $('#kpis').innerHTML=K.map(([k,l])=>'<div class="card"><div class="n">'+(s.totals[k]||0)+'</div><div class="l">'+l+'</div></div>').join('');
-  const dates=[...Array(+days)].map((_,i)=>new Date(Date.now()-(+days-1-i)*864e5).toISOString().slice(0,10));
+  const dates=[...Array(+days)].map((_,i)=>new Date(Date.now()+8*3600e3-(+days-1-i)*864e5).toISOString().slice(0,10));
   const line=(k)=>dates.map(d=>(s.byDay[d]||{})[k]||0);
   chart('trend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[
     {label:'瀏覽',data:line('page_view'),borderColor:'#111',tension:.3},
@@ -220,10 +225,35 @@ async function loadDash(){
   const GN={'01':'泰拳技術','02':'燃脂減重','03':'體能提升','04':'實戰能力','05':'選手培訓'};
   chart('goalsC',{type:'doughnut',data:{labels:Object.keys(s.goals).map(g=>GN[g]||g),datasets:[{data:Object.values(s.goals),backgroundColor:['#C81015','#E8A800','#0F9D63','#111','#7E8798']}]},
     options:{plugins:{legend:{position:'bottom'}}}});
-  $('#topPages').innerHTML='<tr><th>頁面</th><th>瀏覽</th></tr>'+(s.topPages.map(([p,n])=>'<tr><td>'+p+'</td><td>'+n+'</td></tr>').join('')||'<tr><td colspan=2 class="hint">尚無資料</td></tr>');
+  $('#topPages').innerHTML='<tr><th>頁面</th><th>瀏覽</th></tr>'+(s.topPages.map(([p,n])=>'<tr><td>'+esc(p)+'</td><td>'+n+'</td></tr>').join('')||'<tr><td colspan=2 class="hint">尚無資料</td></tr>');
   $('#topQ').innerHTML='<tr><th>問題</th><th>次數</th></tr>'+(s.topQuestions.map(([q,n])=>'<tr><td>'+q.replace(/</g,'&lt;')+'</td><td>'+n+'</td></tr>').join('')||'<tr><td colspan=2 class="hint">尚無資料</td></tr>');
 }
 $('#days').onchange=loadDash;
+
+let OUTCOMES=[];
+const growthLabels={shark_guide_start:'開始小鯊選課',shark_guide_complete:'完成選課建議',shark_booking_click:'由小鯊前往預約',booking_entry:'點擊預約入口',booking_start:'開始填表',booking_submit_success:'網站收件成功',booking_submit_failure:'網站收件失敗',booking_line_open:'開啟 LINE',design_case_view:'設計案例瀏覽',design_case_entry:'點擊案例入口',design_inquiry_click:'點擊品牌健檢'};
+function metricRows(keys,totals){return '<tr><th>操作</th><th>次數</th></tr>'+keys.map(k=>'<tr><td>'+growthLabels[k]+'</td><td>'+(totals[k]||0)+'</td></tr>').join('');}
+function renderGrowth(s){
+  $('#growthCombat').innerHTML=metricRows(['shark_guide_start','shark_guide_complete','shark_booking_click','booking_entry','booking_start','booking_submit_success','booking_submit_failure','booking_line_open'],s.totals);
+  $('#growthDesign').innerHTML=metricRows(['design_case_view','design_case_entry','design_inquiry_click'],s.totals);
+  $('#growthSteps').innerHTML='<tr><th>步驟</th><th>完成次數</th></tr>'+['目標','體驗方式','方便時間','安全與確認'].map((v,i)=>'<tr><td>'+ (i+1)+' · '+v+'</td><td>'+((s.steps||{})[i+1]||0)+'</td></tr>').join('');
+  const courses={beginner:'新手泰拳',cardio:'泰拳燃脂',intermediate:'中階泰拳（待評估）',private:'私人教練體驗'};
+  $('#growthCourses').innerHTML='<tr><th>建議</th><th>次數</th></tr>'+Object.entries(courses).map(([k,v])=>'<tr><td>'+v+'</td><td>'+((s.courses||{})[k]||0)+'</td></tr>').join('');
+  const sources={direct:'直接／未知',google:'Google',instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',threads:'Threads',referral:'其他網站'};
+  $('#growthSources').innerHTML='<tr><th>來源</th><th>開始填表</th><th>網站收件</th><th>開啟 LINE</th><th>品牌健檢點擊</th></tr>'+Object.entries(sources).map(([k,v])=>{const a=(s.sources||{})[k]||{};return '<tr><td>'+v+'</td>'+['booking_start','booking_submit_success','booking_line_open','design_inquiry_click'].map(e=>'<td>'+(a[e]||0)+'</td>').join('')+'</tr>';}).join('');
+  OUTCOMES=s.outcomes||[];
+  $('#growthOutcomes').innerHTML='<tr><th>日期</th><th>品牌</th><th>確認預約</th><th>到館／諮詢</th><th>成交</th></tr>'+(OUTCOMES.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+(r.brand==='combat'?'格鬥招生':'設計品牌')+'</td><td>'+r.confirmed+'</td><td>'+r.attended+'</td><td>'+r.won+'</td></tr>').join('')||'<tr><td colspan="5">尚無回填資料</td></tr>');
+  if(s.version!=='20261027')$('#outcomeStatus').textContent='後台版本尚未更新，新成效欄位暫無資料。';
+}
+$('#outcomeDate').value=new Date(Date.now()+8*3600e3).toISOString().slice(0,10);$('#outcomeDate').max=$('#outcomeDate').value;
+function loadOutcome(){const r=OUTCOMES.find(r=>r.date===$('#outcomeDate').value&&r.brand===$('#outcomeBrand').value);['Confirmed','Attended','Won'].forEach(k=>$('#outcome'+k).value=r?r[k.toLowerCase()]:0);}
+$('#outcomeDate').onchange=loadOutcome;$('#outcomeBrand').onchange=loadOutcome;
+$('#outcomeForm').onsubmit=async e=>{
+  e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;
+  try{const r=await api('/api/admin/outcomes',{method:'POST',body:JSON.stringify({date:$('#outcomeDate').value,brand:$('#outcomeBrand').value,confirmed:+$('#outcomeConfirmed').value,attended:+$('#outcomeAttended').value,won:+$('#outcomeWon').value})});if(!r.ok)throw new Error(r.error||'儲存失敗');$('#outcomeStatus').textContent='已儲存當日成果';await loadDash();}
+  catch(err){$('#outcomeStatus').textContent=err.message||'連線失敗，請稍後再試';}finally{button.disabled=false;}
+};
+
 
 /* ---------- 名單 ---------- */
 const ST={new:['新名單','t-new'],contacted:['已聯絡','t-contacted'],won:['已成交','t-won'],lost:['無效','t-lost']};
