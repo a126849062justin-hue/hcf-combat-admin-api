@@ -68,6 +68,7 @@ legend{font-weight:900;padding:0 8px}
 @media(max-width:880px){.sgrid{grid-template-columns:90px repeat(5,minmax(120px,1fr));overflow-x:auto}}
 .scroll-x{overflow-x:auto}
 </style>
+<link rel="stylesheet" href="/arena-admin.css?v=20261109">
 </head>
 <body>
 
@@ -88,6 +89,7 @@ legend{font-weight:900;padding:0 8px}
     <button data-t="dash" class="on">儀表板</button>
     <button data-t="leads">名單</button>
     <button data-t="content">內容管理</button>
+    <button data-t="arena">選手頁管理</button>
     <button data-t="sys">系統</button>
   </nav>
   <button id="logout">登出</button>
@@ -161,6 +163,24 @@ legend{font-weight:900;padding:0 8px}
     </div>
   </section>
 
+  <section id="t-arena" class="hide">
+    <div class="arena-admin-heading"><div><span>HCF ENTER THE ARENA</span><h2>選手頁內容管理</h2></div><a class="btn line" href="https://www.hsinchucombat.com/fighters" target="_blank" rel="noopener">開啟正式選手頁</a></div>
+    <p class="hint">編輯後先預覽或儲存草稿 確認後按發布 首頁選手入口與選手比賽頁會同步更新</p>
+    <form id="arena-form" class="arena-admin-form">
+      <div class="panel arena-editor-grid"><div>
+        <h3>封面與首頁入口</h3>
+        <label>中文標題<input id="arena-headline" maxlength="40" required></label>
+        <label>介紹文字<textarea id="arena-intro" rows="3" maxlength="180" required></textarea></label>
+        <label>封面照片網址<input id="arena-image" required placeholder="https://www.hsinchucombat.com/assets/照片.webp"></label>
+        <label>封面照片描述<input id="arena-alt" maxlength="160" required></label>
+        <p class="hint">標題不使用標點符號 照片可用官網現有路徑或公開 HTTPS 圖片網址</p>
+      </div><div class="arena-preview"><img id="arena-cover-preview" alt="封面草稿預覽"><strong>ENTER THE <span>ARENA</span></strong><p id="arena-headline-preview"></p><p id="arena-intro-preview"></p></div></div>
+      <div class="panel"><h3>訓練與比賽影像</h3><p class="hint">可編輯標題 說明 分類與排序 最多勾選三筆精選 取消顯示即可暫時隱藏影像</p><p class="hint">此處管理已上傳的媒體網址 照片與影片原檔需先放在官網或公開媒體空間</p><div id="arena-media-editor"></div><button id="arena-add" type="button" class="btn line">新增影像</button><button id="arena-preview-toggle" type="button" class="btn line" aria-expanded="false">預覽影像草稿</button><div id="arena-draft-preview" hidden></div></div>
+      <div class="panel"><h3>已發布版本</h3><div class="arena-history"><select id="arena-history" aria-label="選擇要還原的發布版本"></select><button id="arena-rollback" type="button" class="btn line">還原選取版本並發布</button></div><p class="hint" id="arena-published-at"></p></div>
+      <div class="arena-publish-bar"><button id="arena-save" type="button" class="btn line">儲存草稿</button><button id="arena-publish" type="submit" class="btn">發布到官網</button><button id="arena-reload" type="button" class="btn gray">重新載入</button><span id="arena-message" class="arena-editor-msg" role="status" aria-live="polite"></span><p>草稿不會公開 發布後約三十秒內更新 已開啟的頁面最晚於一分鐘後更新</p></div>
+    </form>
+  </section>
+
   <!-- 系統 -->
   <section id="t-sys" class="hide">
     <div class="panel">
@@ -170,7 +190,7 @@ legend{font-weight:900;padding:0 8px}
         <label class="btn line" style="cursor:pointer">上傳還原<input type="file" id="importFile" accept=".json" class="hide"></label>
         <span id="sysMsg" class="ok"></span>
       </div>
-      <p class="hint">備份含：名單、公告、課表、消息、價格與近 90 天事件。換主機時下載→新主機上傳即可。</p>
+      <p class="hint">備份含：名單、公告、課表、消息、價格、選手頁草稿與發布版本，以及近 90 天事件。換主機時下載→新主機上傳即可。</p>
     </div>
     <div class="panel">
       <h3>安全提醒</h3>
@@ -199,7 +219,7 @@ $('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST'});show(f
 /* ---------- 分頁 ---------- */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  ['dash','leads','content','sys'].forEach(t=>$('#t-'+t).classList.toggle('hide',t!==b.dataset.t));
+  ['dash','leads','content','arena','sys'].forEach(t=>$('#t-'+t).classList.toggle('hide',t!==b.dataset.t));
 });
 
 /* ---------- 儀表板 ---------- */
@@ -394,16 +414,16 @@ async function loadPrice(){const{value}=await api('/api/admin/content/pricing');
 $('#importFile').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   const txt=await f.text();
-  await api('/api/admin/import',{method:'POST',body:txt});
-  $('#sysMsg').textContent='還原完成 ✓';loadAll();
+  try{const result=await api('/api/admin/import',{method:'POST',body:txt});if(!result.ok)throw new Error(result.error||'還原失敗');$('#sysMsg').textContent='還原完成 ✓';loadAll();window.HCFArenaEditor?.load();}catch(e){$('#sysMsg').textContent=e.message||'還原失敗';}
 };
 
 function flash(sel){$(sel).textContent='已儲存 ✓';setTimeout(()=>$(sel).textContent='',2500);}
 function loadAll(){loadDash();loadLeads();loadAnn();loadSched();loadNews();loadPrice();}
-function boot(){loadAll();}
+function boot(){loadAll();window.HCFArenaEditor?.load();}
 
 /* 已有 cookie 時自動進入 */
 api('/api/admin/stats?days=7').then(()=>{show(true);boot();}).catch(()=>{});
 </script>
+<script src="/arena-admin.js?v=20261109" defer></script>
 </body>
 </html>
