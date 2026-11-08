@@ -5,7 +5,7 @@ test('authenticated metrics: event sanitation, outcomes, overwrite and validatio
  try{
   await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);server.once('exit',code=>reject(new Error('exit '+code)));});
   const base='http://127.0.0.1:8893',post=(url,data,cookie)=>fetch(base+url,{method:'POST',headers:{'content-type':'application/json',...(cookie?{cookie}: {})},body:JSON.stringify(data)});
-  assert.deepEqual(await (await fetch(base+'/api/health')).json(),{ok:true,version:'20261027'});
+  assert.deepEqual(await (await fetch(base+'/api/health')).json(),{ok:true,version:'20261109-cms'});
   assert.equal((await post('/api/line/webhook',{events:[]})).status,401);
   assert.equal((await fetch(base+'/api/admin/stats')).status,401);
   assert.equal((await post('/api/admin/outcomes',{})).status,401);

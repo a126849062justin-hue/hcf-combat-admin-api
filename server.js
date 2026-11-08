@@ -62,6 +62,9 @@ if(process.env.DATABASE_URL){
   }catch(_){}},6*3600*1000);
 }
 
+const {createArenaCMS,validateState}=require('./arena-cms');
+const arenaCMS=createArenaCMS(store);
+
 /* ---------------- 工具 ---------------- */
 const hmac=s=>crypto.createHmac('sha256',SECRET).update(s).digest('hex');
 const makeToken=()=>{const exp=Date.now()+7*864e5;return exp+'.'+hmac(String(exp));};
@@ -156,7 +159,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='OPTIONS'){res.writeHead(204,cors);return res.end();}
 
     /* ===== 公開 API（給官網用，CORS 開放） ===== */
-    if(p==='/api/health'&&req.method==='GET')return json(res,200,{ok:true,version:'20261027'},Object.assign({'Cache-Control':'no-store'},cors));
+    if(p==='/api/health'&&req.method==='GET')return json(res,200,{ok:true,version:'20261109-cms'},Object.assign({'Cache-Control':'no-store'},cors));
     if(p==='/api/track'&&req.method==='POST'){
       const e=parse(await body(req));
       if(e&&EVENT_WHITELIST.has(e.name)){
@@ -198,6 +201,7 @@ const server=http.createServer(async(req,res)=>{
       }
       return json(res,200,{ok:true});
     }
+    if(p==='/api/public/arena'&&req.method==='GET')return json(res,200,await arenaCMS.public(),Object.assign({'Cache-Control':'public, max-age=30'},cors,{'Access-Control-Allow-Origin':'*'}));
     if(p==='/api/public/content'&&req.method==='GET'){
       const out={};
       for(const k of CONTENT_KEYS)out[k]=await store.get(k);
@@ -225,6 +229,15 @@ const server=http.createServer(async(req,res)=>{
     /* ===== 管理 API（需登入） ===== */
     if(p.startsWith('/api/admin/')){
       if(!checkToken(cookieToken(req)))return json(res,401,{error:'unauthorized'});
+      if(p==='/api/admin/arena'){
+        if(req.method==='GET')return json(res,200,await arenaCMS.read(),{'Cache-Control':'no-store'});
+        if(req.method==='POST'){
+          if(req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return json(res,403,{error:'不允許跨站發布'});
+          try{return json(res,200,await arenaCMS.update(parse(await body(req))),{'Cache-Control':'no-store'});}
+          catch(e){if(e.status)return json(res,e.status,{error:e.message});throw e;}
+        }
+        return json(res,405,{error:'method not allowed'});
+      }
       if(p==='/api/admin/stats')return json(res,200,await stats(Math.min(90,+u.searchParams.get('days')||30)));
       if(p==='/api/admin/outcomes'&&req.method==='POST'){
         const d=parse(await body(req));
@@ -257,7 +270,7 @@ const server=http.createServer(async(req,res)=>{
         if(req.method==='POST'){const d=parse(await body(req));await store.set(mC[1],d?d.value:null);return json(res,200,{ok:true});}
       }
       if(p==='/api/admin/export'){
-        const out={exportedAt:new Date().toISOString(),leads:await store.get('leads'),outcomes:await store.get('outcomes')};
+        const out={arena_cms:await arenaCMS.read(),exportedAt:new Date().toISOString(),leads:await store.get('leads'),outcomes:await store.get('outcomes')};
         for(const k of CONTENT_KEYS)out[k]=await store.get(k);
         out.events=await store.events(Date.now()-90*864e5);
         res.writeHead(200,{'Content-Type':'application/json','Content-Disposition':'attachment; filename="hcf-backup.json"'});
@@ -266,6 +279,9 @@ const server=http.createServer(async(req,res)=>{
       if(p==='/api/admin/import'&&req.method==='POST'){
         const d=parse(await body(req));
         if(!d)return json(res,400,{error:'格式錯誤'});
+        let restoredArena;
+        if(d.arena_cms){try{restoredArena=validateState(d.arena_cms);}catch(e){return json(res,400,{error:e.message});}}
+        if(restoredArena)await store.set('arena_cms',restoredArena);
         if(Array.isArray(d.leads))await store.set('leads',d.leads);
         if(Array.isArray(d.outcomes)&&d.outcomes.every(validOutcome))await store.set('outcomes',d.outcomes);
         for(const k of CONTENT_KEYS)if(k in d)await store.set(k,d[k]);
@@ -276,6 +292,10 @@ const server=http.createServer(async(req,res)=>{
     }
 
     /* ===== 後台頁面 ===== */
+    if(p==='/arena-admin.js'||p==='/arena-admin.css'){
+      res.writeHead(200,{'Content-Type':p.endsWith('.js')?'application/javascript':'text/css','Cache-Control':'no-cache'});
+      return res.end(fs.readFileSync(path.join(__dirname,p.slice(1))));
+    }
     if(p==='/chart.js'){
       res.writeHead(200,{'Content-Type':'application/javascript','Cache-Control':'public, max-age=86400'});
       return res.end(fs.readFileSync(path.join(__dirname,'chart.umd.js')));
@@ -290,4 +310,4 @@ const server=http.createServer(async(req,res)=>{
     json(res,500,{error:'server error'});
   }
 });
-server.listen(PORT,()=>console.log('HCF 後台啟動 http://localhost:'+PORT+'  儲存模式: '+store.mode+(PASSWORD==='hcf-change-me'?'  ⚠️ 請設定 ADMIN_PASSWORD':'')));
+server.listen(PORT,()=>console.log('HCF 後台啟動 http://localhost:'+server.address().port+'  儲存模式: '+store.mode+(PASSWORD==='hcf-change-me'?'  ⚠️ 請設定 ADMIN_PASSWORD':'')));
